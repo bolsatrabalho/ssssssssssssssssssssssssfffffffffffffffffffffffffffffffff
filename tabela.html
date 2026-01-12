@@ -1,157 +1,192 @@
-<script>
-const URL_APPS = "https://script.google.com/macros/s/AKfycbwwl6i89bMXh8TNd3Kk7iFzZuUcwOdqzLKqZ5geg2r7FIurKOoj102twjhSlXDRpsw7Fw/exec";
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Sistema de Frequência de Bolsistas</title>
 
-/* =======================
-   USUÁRIO
-======================= */
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    padding: 20px;
+}
+.container {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    max-width: 1400px;
+    margin: auto;
+}
+h2 { margin-top: 0; }
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+th, td {
+    border: 1px solid #ccc;
+    padding: 5px;
+    text-align: center;
+}
+th { background: #eee; }
+input, select { width: 100%; font-size: 12px; }
+button {
+    padding: 6px 12px;
+    margin-right: 5px;
+    cursor: pointer;
+}
+.hidden { display: none; }
+</style>
+</head>
+
+<body>
+<div class="container">
+<h2>Sistema de Frequência de Bolsistas</h2>
+<div id="infoUsuario"></div>
+
+<br>
+
+<button id="btnAdicionar">➕ Adicionar Bolsista</button>
+<button id="btnSalvar">💾 Salvar</button>
+<button id="btnEnviar">📤 Enviar Planilha</button>
+
+<br><br>
+
+<table>
+<thead>
+<tr>
+<th>Campus</th>
+<th>Nome</th>
+<th>Matrícula</th>
+<th>Setor</th>
+<th>Início</th>
+<th>Fim</th>
+<th>Email Coordenador</th>
+<th>Jan</th><th>Fev</th><th>Mar</th><th>Abr</th>
+<th>Mai</th><th>Jun</th><th>Jul</th><th>Ago</th>
+<th>Set</th><th>Out</th><th>Nov</th><th>Dez</th>
+<th>Justificativa</th>
+<th>Arquivo</th>
+<th>Ações</th>
+</tr>
+</thead>
+<tbody id="tbody"></tbody>
+</table>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+/* ================= CONFIG ================= */
+const URL_APPS = "https://script.google.com/macros/s/AKfycbwwl6i89bMXh8TNd3Kk7iFzZuUcwOdqzLKqZ5geg2r7FIurKOoj102twjhSlXDRpsw7Fw/exec";
+const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+
+/* ================= USUÁRIO ================= */
 const emailUsuario = sessionStorage.getItem("emailUsuario");
 const tipoUsuario = sessionStorage.getItem("tipoUsuario");
 
-if(!emailUsuario || !tipoUsuario){
-    alert("Acesso inválido.");
+if (!emailUsuario || !tipoUsuario) {
+    alert("Acesso inválido");
     window.location.href = "index.html";
+    return;
 }
 
 document.getElementById("infoUsuario").innerText =
-`Usuário: ${emailUsuario} | Perfil: ${tipoUsuario === "admin" ? "Administrador" : "Coordenador"}`;
+`Usuário: ${emailUsuario} | Perfil: ${tipoUsuario}`;
 
-if(tipoUsuario !== "admin"){
-    document.getElementById("btnAdicionar").style.display = "none";
+if (tipoUsuario !== "admin") {
+    document.getElementById("btnAdicionar").classList.add("hidden");
 }
 
-/* =======================
-   DADOS
-======================= */
+/* ================= DADOS ================= */
 let bolsistas = JSON.parse(localStorage.getItem("bolsistas")) || [];
 
-/* =======================
-   TABELA
-======================= */
-function renderTabela(){
+/* ================= FUNÇÕES ================= */
+function salvar() {
+    localStorage.setItem("bolsistas", JSON.stringify(bolsistas));
+}
+
+function renderTabela() {
     const tbody = document.getElementById("tbody");
     tbody.innerHTML = "";
 
-    bolsistas.forEach((b,i)=>{
-        if(tipoUsuario !== "admin" && b.coordenador !== emailUsuario) return;
+    bolsistas.forEach((b, i) => {
+        if (tipoUsuario !== "admin" && b.coordenador !== emailUsuario) return;
 
         const tr = document.createElement("tr");
+
         tr.innerHTML = `
-        <td>${inputTexto(i,"campus")}</td>
-        <td>${inputTexto(i,"nome")}</td>
-        <td>${inputTexto(i,"matricula")}</td>
-        <td>${inputTexto(i,"setor")}</td>
-        <td>${inputData(i,"vigenciaInicio")}</td>
-        <td>${inputData(i,"vigenciaFim")}</td>
-        <td>${inputTexto(i,"coordenador")}</td>
-        ${mesesHTML(b,i)}
-        <td>${inputTexto(i,"justificativa",true)}</td>
+        <td><input value="${b.campus||""}" onchange="atualizar(${i},'campus',this.value)"></td>
+        <td><input value="${b.nome||""}" onchange="atualizar(${i},'nome',this.value)"></td>
+        <td><input value="${b.matricula||""}" onchange="atualizar(${i},'matricula',this.value)"></td>
+        <td><input value="${b.setor||""}" onchange="atualizar(${i},'setor',this.value)"></td>
+        <td><input type="date" value="${b.inicio||""}" onchange="atualizar(${i},'inicio',this.value)"></td>
+        <td><input type="date" value="${b.fim||""}" onchange="atualizar(${i},'fim',this.value)"></td>
+        <td><input value="${b.coordenador||""}" onchange="atualizar(${i},'coordenador',this.value)"></td>
+        ${meses.map(m => `
         <td>
-            <input type="file" onchange="uploadArquivo(event,${i})">
-            ${b.arquivoNome ? `<div>${b.arquivoNome}</div>` : ""}
-        </td>
-        <td>${tipoUsuario==="admin" ? `<button onclick="remover(${i})">Remover</button>` : ""}</td>
+            <select onchange="atualizar(${i},'${m}',this.value)">
+                <option value=""></option>
+                <option ${b[m]==="SIM"?"selected":""}>SIM</option>
+                <option ${b[m]==="NÃO"?"selected":""}>NÃO</option>
+            </select>
+        </td>`).join("")}
+        <td><input value="${b.justificativa||""}" onchange="atualizar(${i},'justificativa',this.value)"></td>
+        <td><input type="file" onchange="uploadArquivo(event,${i})"></td>
+        <td><button onclick="remover(${i})">❌</button></td>
         `;
+
         tbody.appendChild(tr);
     });
 
     salvar();
 }
 
-function inputTexto(i,campo,sempreEditavel=false){
-    const editavel = tipoUsuario==="admin" || sempreEditavel;
-    return editavel
-        ? `<input type="text" value="${bolsistas[i][campo]||""}" onchange="atualizar(${i},'${campo}',this.value)">`
-        : (bolsistas[i][campo]||"");
-}
+window.atualizar = (i,c,v) => { bolsistas[i][c]=v; salvar(); };
 
-function inputData(i,campo){
-    return tipoUsuario==="admin"
-        ? `<input type="date" value="${bolsistas[i][campo]||""}" onchange="atualizar(${i},'${campo}',this.value)">`
-        : (bolsistas[i][campo]||"");
-}
-
-function mesesHTML(b,i){
-    const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-    return meses.map(m=>`
-        <td>
-            <select onchange="atualizar(${i},'${m}',this.value)">
-                <option value=""> </option>
-                <option value="SIM" ${b[m]==="SIM"?"selected":""}>SIM</option>
-                <option value="NÃO" ${b[m]==="NÃO"?"selected":""}>NÃO</option>
-            </select>
-        </td>
-    `).join("");
-}
-
-/* =======================
-   CRUD
-======================= */
-function atualizar(i,campo,valor){
-    bolsistas[i][campo] = valor;
-    salvar();
-}
-
-function adicionarBolsista(){
-    bolsistas.push({
-        campus:"",
-        nome:"",
-        matricula:"",
-        setor:"",
-        coordenador:"",
-        vigenciaInicio:"",
-        vigenciaFim:"",
-        Jan:"",Fev:"",Mar:"",Abr:"",Mai:"",Jun:"",
-        Jul:"",Ago:"",Set:"",Out:"",Nov:"",Dez:"",
-        justificativa:"",
-        arquivoBase64:"",
-        arquivoNome:""
-    });
-    renderTabela();
-}
-
-function remover(i){
-    if(confirm("Remover bolsista?")){
+window.remover = (i) => {
+    if(confirm("Remover bolsista?")) {
         bolsistas.splice(i,1);
         renderTabela();
     }
-}
+};
 
-function salvar(){
-    localStorage.setItem("bolsistas", JSON.stringify(bolsistas));
-}
-
-/* =======================
-   UPLOAD
-======================= */
-function uploadArquivo(e,i){
+window.uploadArquivo = (e,i) => {
     const file = e.target.files[0];
     if(!file) return;
 
     const reader = new FileReader();
-    reader.onload = ()=>{
+    reader.onload = () => {
         bolsistas[i].arquivoBase64 = reader.result.split(",")[1];
         bolsistas[i].arquivoNome = file.name;
         salvar();
-        renderTabela();
     };
     reader.readAsDataURL(file);
-}
+};
 
-/* =======================
-   ENVIO
-======================= */
-function enviarPlanilha(){
-    fetch(URL_APPS,{
-        method:"POST",
+/* ================= BOTÕES ================= */
+document.getElementById("btnAdicionar").onclick = () => {
+    bolsistas.push({});
+    renderTabela();
+};
+
+document.getElementById("btnSalvar").onclick = salvar;
+
+document.getElementById("btnEnviar").onclick = () => {
+    fetch(URL_APPS, {
+        method: "POST",
         body: JSON.stringify(bolsistas)
     })
     .then(r=>r.json())
-    .then(d=>{
-        if(d.status==="ok") alert("Dados enviados com sucesso!");
-        else alert(d.mensagem);
-    })
+    .then(d=>alert(d.status==="ok"?"Enviado com sucesso":"Erro"))
     .catch(()=>alert("Erro de conexão"));
-}
+};
 
+/* ================= INIT ================= */
 renderTabela();
+
+});
 </script>
+</body>
+</html>
